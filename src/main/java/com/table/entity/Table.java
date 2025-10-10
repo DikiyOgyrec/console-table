@@ -7,28 +7,26 @@ import com.table.smt.ColumnType;
 import java.util.*;
 
 public class Table {
-    private List<Column> columns;
-    private List<Row> rows;
+    private List<Column> columns = new ArrayList<>();
+    private List<List<Object>> rows = new ArrayList<>();
 
     public Table() {}
 
-    public Table(List<Column> columns, List<Row> rows) {
-        this.columns = new ArrayList<>();
-        this.rows = new ArrayList<>();
+    public Table(List<Column> columns, List<List<Object>> rows) {
+        this.columns = columns;
+        this.rows = rows;
     }
 
     public void addColumn(String name, ColumnType<?> type) {
         columns.add(new Column(name, type));
-
-        for (Row row : rows) {
-            while (row.size() < columns.size()) {
-                row.addValue(type.getDefaultValue());
-            }
+        Object defaultValue = type.getDefaultValue();
+        for (List<Object> row : rows) {
+            row.add(defaultValue);
         }
     }
 
     public void addRow(List<String> stringValues) {
-        Row row = new Row();
+        List<Object> row = new ArrayList<>();
 
         for (int i = 0; i < columns.size(); i++) {
             Column column = columns.get(i);
@@ -36,10 +34,10 @@ public class Table {
 
             try {
                 Object parsedValue = parseValue(column.getType(), stringValue);
-                row.addValue(parsedValue);
+                row.add(parsedValue);
             } catch (IllegalArgumentException e) {
                 System.out.println("Ошибка в столбце '" + column.getName() + "': " + e.getMessage());
-                row.addValue(column.getType().getDefaultValue());
+                row.add(column.getType().getDefaultValue());
             }
         }
 
@@ -52,7 +50,7 @@ public class Table {
 
     public <T> T getValue(int row, int col, Class<T> expectedType) {
         if (row >= 0 && row < rows.size() && col >= 0 && col < columns.size()) {
-            Object value = rows.get(row).getValue(col);
+            Object value = rows.get(row).get(col);
             if (expectedType.isInstance(value)) {
                 return (T) value;
             }
@@ -70,11 +68,11 @@ public class Table {
             }
         }
 
-        for (Row row : rows) {
+        for (List<Object> row : rows) {
             List<String> selectedValues = new ArrayList<>();
             for (int index : columnIndexes) {
                 if (index >= 0 && index < columns.size()) {
-                    Object value = row.getValue(index);
+                    Object value = row.get(index);
                     String formattedValue = formatValue(columns.get(index).getType(), value);
                     selectedValues.add(formattedValue);
                 } else {
@@ -109,10 +107,10 @@ public class Table {
 
         for (int index : rowIndexes) {
             if (index >= 0 && index < rows.size()) {
-                Row row = rows.get(index);
+                List<Object> row = rows.get(index);
                 List<String> stringValues = new ArrayList<>();
                 for (int i = 0; i < columns.size(); i++) {
-                    Object value = row.getValue(i);
+                    Object value = row.get(i);
                     String formattedValue = formatValue(columns.get(i).getType(), value);
                     stringValues.add(formattedValue);
                 }
@@ -151,12 +149,12 @@ public class Table {
             return result;
         }
 
-        for (Row row : rows) {
-            Object cellValue = row.getValue(columnIndex);
+        for (List<Object> row : rows) {
+            Object cellValue = row.get(columnIndex);
             if (Objects.equals(cellValue, targetValue)) {
                 List<String> stringValues = new ArrayList<>();
                 for (int i = 0; i < columns.size(); i++) {
-                    Object rValue = row.getValue(i);
+                    Object rValue = row.get(i);
                     String formattedValue = formatValue(columns.get(i).getType(), rValue);
                     stringValues.add(formattedValue);
                 }
@@ -172,25 +170,25 @@ public class Table {
             return new HashMap<>();
         }
 
-        Map<Object, List<Row>> groups = new HashMap<>();
+        Map<Object, List<List<Object>>> groups = new HashMap<>();
 
-        for (Row row : rows) {
-            Object key = row.getValue(columnIndex);
+        for (List<Object> row : rows) {
+            Object key = row.get(columnIndex);
             groups.computeIfAbsent(key, k -> new ArrayList<>()).add(row);
         }
 
         Map<Object, Table> result = new HashMap<>();
-        for (Map.Entry<Object, List<Row>> entry : groups.entrySet()) {
+        for (Map.Entry<Object, List<List<Object>>> entry : groups.entrySet()) {
             Table groupTable = new Table();
 
             for (Column column : columns) {
                 groupTable.addColumn(column.getName(), column.getType());
             }
 
-            for (Row row : entry.getValue()) {
+            for (List<Object> row : entry.getValue()) {
                 List<String> stringValues = new ArrayList<>();
                 for (int i = 0; i < columns.size(); i++) {
-                    Object value = row.getValue(i);
+                    Object value = row.get(i);
                     String formattedValue = formatValue(columns.get(i).getType(), value);
                     stringValues.add(formattedValue);
                 }
@@ -220,12 +218,12 @@ public class Table {
         ColumnType<?> columnType = columns.get(columnIndex).getType();
         if (columnType instanceof IntegerColumn) {
             int sum = rows.stream()
-                    .mapToInt(row -> (Integer) row.getValue(columnIndex))
+                    .mapToInt(row -> (Integer) row.get(columnIndex))
                     .sum();
             return Optional.of(sum);
         } else if (columnType instanceof DoubleColumn) {
             double sum = rows.stream()
-                    .mapToDouble(row -> (Double) row.getValue(columnIndex))
+                    .mapToDouble(row -> (Double) row.get(columnIndex))
                     .sum();
             return Optional.of(sum);
         }
@@ -241,12 +239,12 @@ public class Table {
         ColumnType<?> columnType = columns.get(columnIndex).getType();
         if (columnType instanceof IntegerColumn) {
             OptionalDouble avg = rows.stream()
-                    .mapToInt(row -> (Integer) row.getValue(columnIndex))
+                    .mapToInt(row -> (Integer) row.get(columnIndex))
                     .average();
             return avg.isPresent() ? Optional.of(avg.getAsDouble()) : Optional.empty();
         } else if (columnType instanceof DoubleColumn) {
             OptionalDouble avg = rows.stream()
-                    .mapToDouble(row -> (Double) row.getValue(columnIndex))
+                    .mapToDouble(row -> (Double) row.get(columnIndex))
                     .average();
             return avg.isPresent() ? Optional.of(avg.getAsDouble()) : Optional.empty();
         }
@@ -267,7 +265,7 @@ public class Table {
         }
 
         return rows.stream()
-                .map(row -> row.getValue(columnIndex))
+                .map(row -> row.get(columnIndex))
                 .filter(val -> Objects.equals(val, targetValue))
                 .count();
     }
@@ -285,5 +283,66 @@ public class Table {
         } catch (ClassCastException e) {
             return type.format(type.getDefaultValue());
         }
+    }
+
+    public void printTable() {
+        if (columns.isEmpty()) {
+            System.out.println("Таблица пуста");
+            return;
+        }
+
+        List<Integer> maxWidths = new ArrayList<>();
+        for (Column column : columns) {
+            maxWidths.add(column.toString().length());
+        }
+
+        for (List<Object> row : rows) {
+            for (int i = 0; i < columns.size() && i < maxWidths.size(); i++) {
+                Object value = row.get(i);
+                String formatted = formatValue(columns.get(i).getType(), value);
+                maxWidths.set(i, Math.max(maxWidths.get(i), formatted.length()));
+            }
+        }
+
+        System.out.print("|");
+        for (int i = 0; i < columns.size(); i++) {
+            System.out.printf(" %-" + maxWidths.get(i) + "s |", columns.get(i).toString());
+        }
+        System.out.println();
+
+        System.out.print("|");
+        for (int width : maxWidths) {
+            System.out.print("-".repeat(width + 2) + "|");
+        }
+        System.out.println();
+
+        for (List<Object> row : rows) {
+            System.out.print("|");
+            for (int i = 0; i < columns.size(); i++) {
+                Object value = row.get(i);
+                String formatted = formatValue(columns.get(i).getType(), value);
+                System.out.printf(" %-" + maxWidths.get(i) + "s |", formatted);
+            }
+            System.out.println();
+        }
+    }
+
+    public void printSchema() {
+        System.out.println("Схема таблицы:");
+        for (int i = 0; i < columns.size(); i++) {
+            System.out.println((i + 1) + ". " + columns.get(i));
+        }
+    }
+
+    public int getRowCount() {
+        return rows.size();
+    }
+
+    public int getColumnCount() {
+        return columns.size();
+    }
+
+    public List<Column> getColumns() {
+        return Collections.unmodifiableList(columns);
     }
 }

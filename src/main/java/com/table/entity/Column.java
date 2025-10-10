@@ -35,6 +35,6 @@ public class Column {
 
     @Override
     public String toString() {
-        return name + " ( " + type.getTypeName() + " ) ";
+        return name + " (" + type.getTypeName() + ")";
     }
 }
